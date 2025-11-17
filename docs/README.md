@@ -99,15 +99,11 @@ python_c_image_app/ ├── src/ # 모든 소스 코드 │ ├── c_filter
 
 버그 리포트, 기능 제안 또는 코드 기여를 환영합니다. GitHub 리포지토리의 Issues 섹션을 사용하거나 Pull Request를 제출해 주세요.
 
-## 📄 라이선스 (License)
-
-이 프로젝트는 MIT 라이선스에 따라 배포됩니다. 자세한 내용은 `LICENSE` 파일을 참조하세요.
-(현재 `LICENSE` 파일은 없으니, 만약 사용하고 싶지 않으시면 이 섹션을 삭제하셔도 됩니다.)
 
 ## 📞 연락처 (Contact)
 
 -   **김준연 (Junyeon Kim)**
--   **GitHub:** [https://github.com/YourGitHubUsername](https://github.com/YourGitHubUsername)
+-   **GitHub:** [https://github.com/ajun984/python_c_image_app](https://github.com/ajun984/python_c_image_app)
 
 ---
 (본 문서는 2025년 11월 17일 기준으로 작성되었으며, 필요에 따라 업데이트될 수 있습니다.)
