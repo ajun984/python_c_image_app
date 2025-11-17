@@ -1,4 +1,4 @@
-// #include <stdio.h>
+#include <stdio.h>
 // C 언어의 표준 입출력 라이브러리를 포함하는 지시어입니다.
 // 이 코드를 포함한다고 해서 꼭 출력 기능(printf)을 사용해야 하는 것은 아니지만,
 // C 파일을 만들 때 관례적으로 포함시키는 경우가 많습니다.
@@ -79,3 +79,40 @@ void apply_grayscale_c(unsigned char *pixels, int width, int height) {
         pixels[i*3 + 2] = gray; // Blue 채널을 'gray' 값으로 변경
     } // for 반복문의 끝
 } // 함수의 끝
+
+// --- 밝기 조절 필터 함수 ---
+// 이 함수는 파이썬에서 호출되어 이미지의 밝기를 조절하는 역할을 합니다.
+// 픽셀 데이터의 배열, 이미지의 너비, 높이, 그리고 밝기 조절 계수를 입력받습니다.
+// brightness_factor는 양수이면 밝아지고, 음수이면 어두워집니다.
+void apply_brightness_c(unsigned char *pixels, int width, int height, int brightness_factor) {
+    // 전체 픽셀의 개수를 계산합니다.
+    int num_pixels = width * height;
+
+    // 모든 픽셀에 대해 반복합니다.
+    for (int i = 0; i < num_pixels; i++) {
+        // 현재 픽셀의 R, G, B 색상 값을 가져옵니다.
+        unsigned char r = pixels[i*3];
+        unsigned char g = pixels[i*3 + 1];
+        unsigned char b = pixels[i*3 + 2];
+
+        // 밝기 조절 로직: 각 R, G, B 값에 brightness_factor를 더합니다.
+        // 이때, 픽셀 값이 0보다 작아지거나 255보다 커지지 않도록 제한(클리핑)합니다.
+        // 중간 계산을 위해 int 타입 변수를 사용합니다.
+        int new_r = r + brightness_factor;
+        if (new_r < 0) new_r = 0;       // 0보다 작으면 0으로 고정
+        else if (new_r > 255) new_r = 255; // 255보다 크면 255로 고정
+
+        int new_g = g + brightness_factor;
+        if (new_g < 0) new_g = 0;
+        else if (new_g > 255) new_g = 255;
+
+        int new_b = b + brightness_factor;
+        if (new_b < 0) new_b = 0;
+        else if (new_b > 255) new_b = 255;
+
+        // 계산된 밝기 값을 원래 픽셀의 R, G, B 채널에 unsigned char 타입으로 변환하여 저장합니다.
+        pixels[i*3] = (unsigned char)new_r;
+        pixels[i*3 + 1] = (unsigned char)new_g;
+        pixels[i*3 + 2] = (unsigned char)new_b;
+    }
+}
