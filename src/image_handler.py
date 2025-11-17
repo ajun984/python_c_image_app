@@ -26,22 +26,32 @@ from src import c_interface
 # ImageHandler 객체를 만들면, 이미지 처리와 관련된 모든 기능을 깔끔하게 사용할 수 있어요.
 class ImageHandler:
     def __init__(self):
-        # ImageHandler 객체가 처음 만들어질 때 자동으로 실행되는 부분입니다.
+        # ImageHandler 객체가 처음 만들어질 때 자동으로 실행됩니다.
         # 여기서 C 라이브러리 '통역가'를 불러와 준비시킵니다.
-        # c_interface.load_c_filters_library() 함수가 C 라이브러리를 로드하고 C 함수를 정의하는 일을 해줍니다.
         self.c_lib = c_interface.load_c_filters_library()
         print("ImageHandler: C 라이브러리(통역가)가 ImageHandler에 연결되었습니다.")
 
-    def load_image(self, image_path):
-        # image_path: 불러올 이미지 파일의 경로 (예: 'assets/test_image.jpg')
+    # --- 여기서부터 `ImageHandler` 클래스의 메서드들입니다. ---
+    # --- class ImageHandler: 줄 바로 아래에 네 칸(스페이스 4번 또는 탭 1번) 들여쓰기가 되어야 합니다. ---
 
+    # COMMENT: 빨간색으로 표시된 이 두 함수는 반드시 `class ImageHandler:` 안에 정의되어야 합니다.
+    # COMMENT: `def __init__` 메서드와 같은 들여쓰기 레벨에 있어야 합니다.
+    def _prepare_pixels_for_c(self, image_obj):
+        byte_data = image_obj.tobytes()
+        num_bytes = len(byte_data)
+        raw_pixels_ptr = (ctypes.c_ubyte * num_bytes).from_buffer_copy(byte_data)
+        return raw_pixels_ptr, image_obj.width, image_obj.height
+
+    def _create_image_from_c_pixels(self, raw_pixels_ptr, width, height):
+        return Image.frombytes('RGB', (width, height), raw_pixels_ptr)
+    # COMMENT: 이 두 함수가 위 `class ImageHandler:` 아래의 들여쓰기 레벨에 정확히 있는지 확인해주세요.
+
+
+    def load_image(self, image_path):
         try:
-            # Image.open(image_path): Pillow를 사용하여 지정된 경로의 이미지 파일을 엽니다.
-            # .convert('RGB'): 이미지가 어떤 형식(예: CMYK, RGBA)이든 상관없이 항상 RGB (빨강, 초록, 파랑) 3채널 형식으로 변환합니다.
-            #                  우리가 만든 C 함수가 RGB만 처리하므로 중요합니다.
             image = Image.open(image_path).convert('RGB')
             print(f"ImageHandler: '{image_path}' 이미지를 성공적으로 불러왔습니다. ({image.width}x{image.height})")
-            return image # 불러온 Image 객체를 반환합니다.
+            return image
         except FileNotFoundError:
             print(f"오류: ImageHandler: 파일을 찾을 수 없습니다: {image_path}")
             return None
@@ -50,92 +60,73 @@ class ImageHandler:
             return None
 
     def apply_grayscale(self, image_obj):
-        # image_obj: load_image() 함수에서 반환받은 Pillow Image 객체입니다.
-
-        if not image_obj: # 혹시 이미지가 제대로 로드되지 않았으면 처리하지 않습니다.
+        if not image_obj:
             print("ImageHandler: 이미지가 유효하지 않아 흑백 필터를 적용할 수 없습니다.")
             return None
-
-        width, height = image_obj.size # Image 객체에서 이미지의 가로(width)와 세로(height) 크기를 가져옵니다.
-
-        # --- 픽셀 데이터를 C 언어가 이해할 수 있는 형태로 준비 ---
-        # image_obj.tobytes(): Image 객체의 픽셀 데이터를 바이트(byte) 배열 형태로 변환합니다.
-        #                      이것은 R, G, B 순서로 쭉 이어진 큰 숫자 덩어리입니다.
-        # len(byte_data): 전체 픽셀 데이터의 바이트 크기입니다. (width * height * 3)
-        byte_data = image_obj.tobytes()
-        num_bytes = len(byte_data)
-
-        # (ctypes.c_ubyte * num_bytes)(*byte_data):
-        # 1. C 언어의 unsigned char 배열과 같은 파이썬 객체를 만듭니다.
-        # 2. 이 객체에 기존 바이트 데이터 (byte_data)를 채워 넣습니다.
-        #    이렇게 만들어진 'raw_pixels_ptr'는 C 함수로 직접 전달될 수 있는 형태가 됩니다.
-        raw_pixels_ptr = (ctypes.c_ubyte * num_bytes).from_buffer_copy(byte_data)
-        # from_buffer_copy()를 사용하면 C 배열 객체가 byte_data의 복사본을 만들어서,
-        # C 함수가 이 복사본을 안전하게 수정할 수 있게 합니다.
-
+        raw_pixels_ptr, width, height = self._prepare_pixels_for_c(image_obj)
         print(f"ImageHandler: 흑백 필터 적용 전 - {width}x{height} 이미지 픽셀 데이터 준비 완료.")
-
-        # --- C 언어 흑백 필터 함수 호출 ---
-        # self.c_lib.apply_grayscale_c(): '통역가'를 통해 C 함수를 호출합니다!
-        # 우리가 정의한 C 함수의 인자 순서대로 데이터를 전달합니다: 픽셀 포인터, 너비, 높이.
         self.c_lib.apply_grayscale_c(raw_pixels_ptr, width, height)
-
         print("ImageHandler: C 흑백 필터 적용 완료.")
+        processed_image = self._create_image_from_c_pixels(raw_pixels_ptr, width, height)
+        return processed_image
 
-        # --- 처리된 픽셀 데이터를 다시 파이썬 Image 객체로 변환 ---
-        # Image.frombytes('RGB', (width, height), raw_pixels_ptr):
-        # 흑백으로 처리되어 변경된 'raw_pixels_ptr' 데이터를 가져와서,
-        # 다시 'RGB' 형식의 (width, height) 크기 Image 객체로 만듭니다.
-        processed_image = Image.frombytes('RGB', (width, height), raw_pixels_ptr)
-        return processed_image # 흑백으로 변환된 새 Image 객체를 반환합니다.
+    def apply_brightness(self, image_obj, brightness_factor):
+        if not image_obj:
+            print("ImageHandler: 이미지가 유효하지 않아 밝기 필터를 적용할 수 없습니다.")
+            return None
+        raw_pixels_ptr, width, height = self._prepare_pixels_for_c(image_obj)
+        print(f"ImageHandler: 밝기 필터 적용 전 - {width}x{height} 이미지 픽셀 데이터 준비 완료.")
+        self.c_lib.apply_brightness_c(raw_pixels_ptr, width, height, brightness_factor)
+        print(f"ImageHandler: C 밝기 필터 (+/- {brightness_factor}) 적용 완료.")
+        processed_image = self._create_image_from_c_pixels(raw_pixels_ptr, width, height)
+        return processed_image
 
     def save_image(self, image_obj, output_path):
-        # image_obj: 저장할 Pillow Image 객체 (흑백으로 처리된 이미지)
-        # output_path: 저장할 파일 경로 (예: 'assets/output_grayscale.jpg')
-
-        if not image_obj: # 혹시 이미지가 제대로 없으면 저장하지 않습니다.
+        if not image_obj:
             print("ImageHandler: 저장할 이미지가 유효하지 않습니다.")
             return False
-
         try:
-            image_obj.save(output_path) # Image 객체를 지정된 경로에 파일로 저장합니다.
+            image_obj.save(output_path)
             print(f"ImageHandler: 이미지를 '{output_path}'에 성공적으로 저장했습니다.")
             return True
         except Exception as e:
             print(f"오류: ImageHandler: 이미지 저장 실패 - {e}")
             return False
 
-# --- 모듈이 직접 실행될 때만 실행되는 코드 블록 (자체 테스트 용도) ---
-# 이 블록은 'python3 src/image_handler.py'처럼 직접 실행할 때만 동작합니다.
-# 다른 파일에서 import 할 때는 실행되지 않으므로, 이 모듈의 기능을 테스트하기 좋습니다.
 if __name__ == '__main__':
     print("\n--- src/image_handler.py 모듈 자체 테스트 시작 ---")
+    input_image_path = os.path.join(project_root_dir, 'assets', 'test_image.jpg')
+    output_grayscale_path = os.path.join(project_root_dir, 'assets', 'output_grayscale.jpg')
+    output_bright_path = os.path.join(project_root_dir, 'assets', 'output_bright.jpg')
+    output_dark_path = os.path.join(project_root_dir, 'assets', 'output_dark.jpg')
 
-    # 테스트에 사용할 이미지 파일 경로를 지정합니다.
-    # assets 폴더에 test_image.jpg 파일을 하나 복사해두면 좋습니다. (어떤 이미지든 상관 없음)
-    # 만약 test_image.jpg가 없다면, 웹에서 아무 JPG 파일이나 다운로드하여 assets 폴더에 넣어주세요.
-    # 예시: assets/test_image.jpg
-    input_image_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'assets', 'test_image.jpg')
-    output_image_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'assets', 'output_grayscale.jpg')
-
-    # ImageHandler 객체를 생성합니다. (__init__ 메서드에서 C 라이브러리 로드)
     handler = ImageHandler()
 
-    # --- 이미지 불러오기 테스트 ---
     original_image = handler.load_image(input_image_path)
 
-    if original_image: # 이미지가 성공적으로 불러와졌다면
-        # --- 흑백 필터 적용 테스트 ---
-        grayscale_image = handler.apply_grayscale(original_image)
-
-        if grayscale_image: # 흑백 필터 적용도 성공했다면
-            # --- 이미지 저장 테스트 ---
-            handler.save_image(grayscale_image, output_image_path)
-            # 저장된 이미지를 확인해보세요!
-            print(f"테스트 완료: '{output_image_path}' 파일을 열어 흑백 이미지를 확인해주세요.")
+    if original_image:
+        print("\n--- 흑백 필터 테스트 ---")
+        grayscale_image = handler.apply_grayscale(original_image.copy())
+        if grayscale_image:
+            handler.save_image(grayscale_image, output_grayscale_path)
+            print(f"테스트 완료: '{output_grayscale_path}' 파일을 열어 흑백 이미지를 확인해주세요.")
         else:
             print("테스트 실패: 흑백 필터 적용에 실패했습니다.")
-    else:
-        print("테스트 실패: 이미지 불러오기에 실패했습니다.")
 
+        print("\n--- 밝기 필터 테스트 ---")
+        bright_image = handler.apply_brightness(original_image.copy(), 50)
+        if bright_image:
+            handler.save_image(bright_image, output_bright_path)
+            print(f"테스트 완료: '{output_bright_path}' 파일을 열어 밝아진 이미지를 확인해주세요.")
+        else:
+            print("테스트 실패: 밝기 필터 (밝게) 적용에 실패했습니다.")
+
+        dark_image = handler.apply_brightness(original_image.copy(), -50)
+        if dark_image:
+            handler.save_image(dark_image, output_dark_path)
+            print(f"테스트 완료: '{output_dark_path}' 파일을 열어 어두워진 이미지를 확인해주세요.")
+        else:
+            print("테스트 실패: 밝기 필터 (어둡게) 적용에 실패했습니다.")
+    else:
+        print("테스트 실패: 이미지 불러오기에 실패했습니다. assets 폴더에 test_image.jpg가 있는지 확인하세요.")
     print("--- src/image_handler.py 모듈 자체 테스트 완료 ---\n")
