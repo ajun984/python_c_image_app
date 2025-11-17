@@ -18,77 +18,92 @@ from src.image_handler import ImageHandler # <--- 우리가 만든 '이미지 �
 # 마치 자동차 설계도처럼, 이 클래스로 '앱'이라는 자동차를 만들 수 있어요.
 class ImageApp:
     def __init__(self, master):
-        # ImageApp 객체가 처음 만들어질 때 자동으로 실행되는 부분입니다.
-        # 여기서 앱의 기본 창을 만들고, 필요한 도구들을 준비합니다.
+        self.master = master
+        master.title("Python-C Image Filter App")
 
-        self.master = master # master는 Tkinter의 메인 창(Root Window)을 의미합니다.
-        master.title("Python-C Image Filter App") # 창의 제목을 설정합니다.
-
-        # '이미지 처리 담당자' (ImageHandler)를 준비합니다.
-        # 이 담당자는 이미지 불러오기, 흑백 처리, 저장 등 모든 실질적인 일을 해줄 거예요.
         self.image_handler = ImageHandler()
 
-        self.original_image = None # 사용자가 불러온 원본 이미지를 저장할 변수 (초기에는 없음)
-        self.processed_image = None # 처리된 이미지(흑백 등)를 저장할 변수 (초기에는 없음)
-        self.tk_image = None       # Tkinter에 이미지를 표시하기 위해 변환된 이미지 객체 (초기에는 없음)
+        self.original_image = None
+        self.processed_image = None
+        self.tk_image = None
+        self.current_brightness = 0 # COMMENT: 빨간색으로 표시된 추가 코드입니다. 현재 밝기 값을 저장할 변수
 
         # --- GUI 요소들을 생성합니다 ---
 
         # 1. 이미지 표시 영역 (Label 위젯을 사용)
-        # 이미지를 보여줄 공간을 만듭니다. 처음에는 비어 있습니다.
         self.image_label = tk.Label(master)
-        self.image_label.pack(pady=10) # 창에 배치하고 위아래로 약간의 여백을 줍니다.
+        self.image_label.pack(pady=10)
 
         # 2. 버튼 프레임 (버튼들을 묶어서 관리하는 틀)
         self.button_frame = tk.Frame(master)
-        self.button_frame.pack(pady=5) # 창에 배치하고 위아래로 약간의 여백을 줍니다.
+        self.button_frame.pack(pady=5)
 
         # 3. '이미지 열기' 버튼
-        # 사용자가 이 버튼을 누르면 이미지를 불러올 수 있도록 합니다.
         self.open_button = tk.Button(self.button_frame, text="이미지 열기", command=self.load_image)
-        self.open_button.pack(side=tk.LEFT, padx=5) # 왼쪽에 배치하고 좌우로 여백을 줍니다.
+        self.open_button.pack(side=tk.LEFT, padx=5)
 
         # 4. '흑백 필터 적용' 버튼
-        # 사용자가 이 버튼을 누르면 현재 이미지에 흑백 필터를 적용합니다.
-        self.grayscale_button = tk.Button(self.button_frame, text="흑백 필터 적용", command=self.apply_grayscale)
+        self.grayscale_button = tk.Button(self.button_frame, text="흑백 필터 적용", command=self.apply_grayscale_filter) # COMMENT: 빨간색으로 표시된 수정 코드입니다. (메서드명 변경)
         self.grayscale_button.pack(side=tk.LEFT, padx=5)
 
         # 5. '이미지 저장' 버튼
-        # 사용자가 이 버튼을 누르면 처리된 이미지를 파일로 저장합니다.
         self.save_button = tk.Button(self.button_frame, text="이미지 저장", command=self.save_image)
         self.save_button.pack(side=tk.LEFT, padx=5)
+
+        # --- NEW CODE START --- (COMMENT: 빨간색으로 표시된 추가 코드입니다.)
+        # 6. 밝기 조절 프레임 (슬라이더와 레이블을 묶어서 관리)
+        self.brightness_frame = tk.Frame(master)
+        self.brightness_frame.pack(pady=5)
+
+        # 7. 밝기 조절 슬라이더
+        # Scale 위젯: 범위(from_=-100, to=100) 내에서 값을 선택할 수 있는 슬라이더
+        # orient=tk.HORIZONTAL: 가로 방향 슬라이더
+        # command=self.update_brightness: 슬라이더 값이 변경될 때마다 update_brightness 함수 호출
+        # length: 슬라이더의 길이
+        self.brightness_scale = tk.Scale(self.brightness_frame, from_=-100, to=100, orient=tk.HORIZONTAL,
+                                        label="밝기 조절", command=self.update_brightness, length=300)
+        self.brightness_scale.set(self.current_brightness) # 초기 밝기 값 설정
+        self.brightness_scale.pack(side=tk.LEFT, padx=5)
+
+        # 8. 밝기 값 표시 레이블
+        self.brightness_value_label = tk.Label(self.brightness_frame, text=f"{self.current_brightness}")
+        self.brightness_value_label.pack(side=tk.LEFT, padx=5)
+
+        # 9. 밝기 초기화 버튼
+        self.reset_brightness_button = tk.Button(self.brightness_frame, text="밝기 초기화", command=self.reset_brightness)
+        self.reset_brightness_button.pack(side=tk.LEFT, padx=5)
+        # --- NEW CODE END ---
+
 
     # --- 버튼을 눌렀을 때 실행될 기능들 (메서드) ---
 
     def load_image(self):
-        # 'filedialog.askopenfilename()'을 사용해서 파일 열기 대화 상자를 띄웁니다.
-        # 사용자가 선택한 파일의 전체 경로를 반환합니다.
         file_path = filedialog.askopenfilename(
-            initialdir=os.path.join(project_root_dir, 'assets'), # 초기 디렉토리를 assets 폴더로 지정
+            initialdir=os.path.join(project_root_dir, 'assets'),
             title="이미지 파일 선택",
             filetypes=(("Image files", "*.jpg;*.jpeg;*.png;*.bmp"), ("All files", "*.*"))
         )
-        if file_path: # 파일이 선택되었다면
-            # '이미지 처리 담당자'에게 이미지를 불러오도록 시킵니다.
+        if file_path:
             loaded_img = self.image_handler.load_image(file_path)
-            if loaded_img: # 이미지가 성공적으로 불러와졌다면
+            if loaded_img:
                 self.original_image = loaded_img # 원본 이미지를 저장해 둡니다.
                 self.processed_image = loaded_img.copy() # 처리할 이미지도 원본 복사본으로 초기화합니다.
                 self.display_image(self.processed_image) # 불러온 이미지를 GUI 창에 표시합니다.
+                self.reset_brightness() # COMMENT: 빨간색으로 표시된 추가 코드입니다. 이미지 로드 시 밝기 초기화
                 print(f"GUI: 이미지 '{file_path}' 로드 완료.")
             else:
                 messagebox.showerror("오류", "이미지 불러오기 실패!")
                 print(f"GUI: 이미지 '{file_path}' 로드 실패.")
 
 
-    def apply_grayscale(self):
-        if self.processed_image: # 현재 창에 표시된 이미지가 있다면
+    # COMMENT: 빨간색으로 표시된 수정 코드입니다. 메서드명을 apply_grayscale_filter로 변경하여 다른 메서드와 구분
+    def apply_grayscale_filter(self):
+        if self.processed_image:
             # '이미지 처리 담당자'에게 흑백 필터 적용을 시킵니다.
-            # 이 담당자가 C 라이브러리(통역가)를 이용해서 이미지를 흑백으로 만들어 줄 거예요.
-            filtered_img = self.image_handler.apply_grayscale(self.processed_image)
-            if filtered_img: # 흑백 필터 적용에 성공했다면
-                self.processed_image = filtered_img # 처리된 이미지를 현재 이미지로 업데이트합니다.
-                self.display_image(self.processed_image) # 흑백 이미지를 GUI 창에 다시 표시합니다.
+            filtered_img = self.image_handler.apply_grayscale(self.processed_image.copy()) # COMMENT: 빨간색으로 표시된 수정 코드입니다. (copy() 추가)
+            if filtered_img:
+                self.processed_image = filtered_img
+                self.display_image(self.processed_image)
                 print("GUI: 흑백 필터 적용 완료.")
             else:
                 messagebox.showerror("오류", "흑백 필터 적용 실패!")
@@ -97,18 +112,47 @@ class ImageApp:
             messagebox.showinfo("정보", "먼저 이미지를 불러와 주세요.")
             print("GUI: 흑백 필터 적용을 위해 이미지 불러오기 필요.")
 
+    # --- NEW CODE START --- (COMMENT: 빨간색으로 표시된 추가 코드입니다.)
+    def update_brightness(self, value):
+        # 슬라이더 값이 변경될 때마다 호출되는 함수
+        self.current_brightness = int(value) # 현재 밝기 값을 정수로 업데이트
+        self.brightness_value_label.config(text=f"{self.current_brightness}") # 레이블 텍스트 업데이트
+
+        if self.original_image: # 원본 이미지가 불러와진 상태라면
+            # 원본 이미지의 복사본에 밝기 필터를 적용하여 표시합니다.
+            # processed_image는 항상 원본 이미지로부터 시작해서 필터링 결과를 보여줍니다.
+            temp_image = self.original_image.copy()
+            adjusted_image = self.image_handler.apply_brightness(temp_image, self.current_brightness)
+            if adjusted_image:
+                self.processed_image = adjusted_image # 밝기 조절된 이미지를 처리된 이미지로 저장
+                self.display_image(self.processed_image) # GUI에 표시
+            else:
+                print("GUI: 밝기 조절 이미지 처리 실패.")
+        else:
+            # 이미지가 없는데 슬라이더가 움직인 경우
+            print("GUI: 이미지가 없어 밝기 조절을 할 수 없습니다.")
+
+    def reset_brightness(self):
+        # 밝기 슬라이더와 값, 그리고 이미지 상태를 초기화합니다.
+        self.brightness_scale.set(0) # 슬라이더를 0으로 설정
+        self.current_brightness = 0 # 밝기 값 초기화
+        self.brightness_value_label.config(text=f"{self.current_brightness}") # 레이블 업데이트
+        if self.original_image: # 원본 이미지가 있다면
+            self.processed_image = self.original_image.copy() # 처리된 이미지를 원본으로 되돌리고
+            self.display_image(self.processed_image) # GUI에 다시 표시
+            print("GUI: 밝기 조절 초기화 완료.")
+        else:
+            print("GUI: 원본 이미지가 없어 밝기 조절을 초기화할 수 없습니다.")
+    # --- NEW CODE END ---
 
     def save_image(self):
-        if self.processed_image: # 처리된 이미지가 있다면
-            # 'filedialog.asksaveasfilename()'을 사용해서 파일 저장 대화 상자를 띄웁니다.
-            # 사용자가 입력한 저장할 파일의 전체 경로를 반환합니다.
+        if self.processed_image:
             file_path = filedialog.asksaveasfilename(
-                defaultextension=".jpg", # 기본 확장자를 .jpg로 설정
-                initialfile="grayscale_image.jpg", # 기본 파일 이름 지정
+                defaultextension=".jpg",
+                initialfile="processed_image.jpg", # COMMENT: 빨간색으로 표시된 수정 코드입니다. (초기 파일명 변경)
                 filetypes=(("JPEG files", "*.jpg"), ("PNG files", "*.png"), ("All files", "*.*"))
             )
-            if file_path: # 저장 경로가 선택되었다면
-                # '이미지 처리 담당자'에게 현재 이미지를 지정된 경로에 저장하도록 시킵니다.
+            if file_path:
                 saved = self.image_handler.save_image(self.processed_image, file_path)
                 if saved:
                     messagebox.showinfo("성공", f"이미지를 '{os.path.basename(file_path)}'에 성공적으로 저장했습니다.")
@@ -122,36 +166,29 @@ class ImageApp:
             messagebox.showinfo("정보", "저장할 이미지가 없습니다.")
             print("GUI: 저장할 이미지가 없어 작업 취소.")
 
-
     def display_image(self, image):
-        # Pillow Image 객체를 Tkinter가 표시할 수 있는 형식으로 변환합니다.
-        # GUI 창의 크기를 벗어나지 않도록 이미지 크기를 조절하는 기능도 포함합니다.
-        max_width = self.master.winfo_width() - 40 # 창 너비에 맞춰 여백 고려
-        if max_width <= 0: max_width = 800 # 초기 창 크기가 아직 없을 경우 기본값
-        max_height = self.master.winfo_height() - 150 # 창 높이에 맞춰 여백 고려
+        max_width = self.master.winfo_width() - 40
+        if max_width <= 0: max_width = 800
+        max_height = self.master.winfo_height() - 150
         if max_height <= 0: max_height = 600
 
-        # 이미지 비율을 유지하며 최대 크기에 맞춰 리사이즈
         img_width, img_height = image.size
         ratio = min(max_width / img_width, max_height / img_height)
 
-        if ratio < 1: # 이미지가 너무 커서 창 크기를 넘어가면
+        if ratio < 1:
             new_width = int(img_width * ratio)
             new_height = int(img_height * ratio)
             resized_image = image.resize((new_width, new_height), Image.Resampling.LANCZOS)
-        else: # 이미지가 창 크기보다 작거나 적당하면
+        else:
             resized_image = image
 
-        self.tk_image = ImageTk.PhotoImage(resized_image) # Tkinter가 표시할 수 있는 객체로 변환
-        self.image_label.config(image=self.tk_image) # image_label에 이미지를 설정합니다.
-        self.image_label.image = self.tk_image # Tkinter의 버그를 방지하기 위해 참조를 유지합니다.
-
+        self.tk_image = ImageTk.PhotoImage(resized_image)
+        self.image_label.config(image=self.tk_image)
+        self.image_label.image = self.tk_image
 
 # --- 앱 실행 시작점 ---
-# 이 블록은 이 gui_app.py 파일이 'python3 src/gui_app.py'처럼 직접 실행될 때만 작동합니다.
-# 이렇게 모듈화하면 각 파일이 자신의 역할에만 집중하고, 필요한 경우에만 메인 실행 흐름을 가질 수 있습니다.
 if __name__ == '__main__':
-    root = tk.Tk() # Tkinter 메인 창 객체를 생성합니다. (우리 앱의 가장 바깥 틀)
-    app = ImageApp(root) # ImageApp 클래스로 우리 앱의 '얼굴' 객체를 만듭니다.
-    root.geometry("800x700") # 창의 초기 크기를 800x700 픽셀로 설정합니다.
-    root.mainloop() # Tkinter 앱을 실행하고 사용자의 입력을 기다립니다. 이 줄이 없으면 창이 바로 닫힙니다.
+    root = tk.Tk()
+    app = ImageApp(root)
+    root.geometry("800x700")
+    root.mainloop()
